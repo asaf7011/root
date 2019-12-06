@@ -1,0 +1,93 @@
+---
+
+- hosts:                localhost
+  become:               true
+  gather_facts:         false
+  serial:               1
+
+  tasks:
+
+    - name: copy jq binary to master
+      copy:
+        src: "../supportBinary/jq-linux64"
+        dest: "/opt/jq"
+        mode: 777
+      delegate_to: "{{grafmas}}"
+      when: grafmas is defined
+
+    - name: retrieve password
+      shell:  oc get secret grafana-datasources -n openshift-monitoring -o json | /opt/jq '.data["prometheus.yaml"]' | tr -d '"'| base64 -d|grep -i basicAuthPassword |awk '{print $2}'|tr -d ','|tr -d '"'
+      register: promPass
+      delegate_to: "{{grafmas}}"
+      when: grafmas is defined
+
+    - name: Create datasource for cluster
+      grafana_datasource:
+        name: "{{grafanaClusterName}}"
+        grafana_url: "{{grafanaURL}}"
+        grafana_user: "admin"
+        grafana_password: "{{grafanaPass}}"
+        ds_type: "prometheus"
+        url: "{{prometheusURL}}"
+        basic_auth_user: "internal"
+        basic_auth_password: "{{promPass.stdout}}"
+        validate_certs: False
+        tls_skip_verify: true
+      when: grafmas is defined
+
+- hosts:                lb
+  become:               true
+  gather_facts:         false
+  serial:               1
+
+  tasks:
+
+    - name: open port 80
+      firewalld:
+        port: 80/tcp
+        permanent: true
+        immediate: yes
+        state: enabled
+
+    - name: open port 443
+      firewalld:
+        port: 443/tcp
+        permanent: true
+        immediate: yes
+        state: enabled
+    
+    - name: open port 2379
+      firewalld:
+        port: 2379/tcp
+        permanent: true
+        immediate: yes
+        state: enabled
+
+    - name: restart firewalld
+      service: 
+        name: firewalld
+        state: restarted
+
+    - name: update haproxy config on lb
+      template:
+        src: templates/haproxy.cfg
+        dest: haproxy.cfg
+      when: routervialb is defined and routervialb == true
+      delegate_to: localhost
+
+    - name: copy haproxy cfg to lb
+      copy:
+        src: haproxy.cfg
+        dest: /etc/haproxy/
+
+    - name: selinux to open 2379
+      seport:
+        ports: 2379
+        proto: tcp
+        setype: http_port_t
+        state: present
+
+    - name: restart haproxy
+      service:
+        name: haproxy
+        state: restarted

@@ -1,0 +1,49 @@
+- name: Delete Unused Image Streams
+  k8s:
+    kubeconfig: ../kubeconfig
+    state: absent
+    kind: ImageStream
+    name: "{{item}}"
+    namespace: openshift
+  notify: kscRestart
+  with_items:
+  - "{{defaultimagestreams}}"
+
+- name: Delete Templates
+  shell: "oc --config=../kubeconfig delete template {{item}} -n openshift"
+  register: delTemps
+  notify: kscRestart
+  changed_when: '"deleted" in delTemps.stdout'
+  failed_when: '"resource" in delTemps.stdout'
+  with_items:
+  - "{{defaultTemplates}}"
+
+- name: Create Image Streams
+  k8s:
+    kubeconfig: ../kubeconfig
+    state: present
+    src: roles/ocppost/files/{{item}}.yaml
+  notify: kscRestart
+  with_items:
+  - "{{customImageStreams}}"
+
+- name: Create Catalog Templates
+  shell: "oc --config=../kubeconfig apply -f roles/ocppost/files/{{item}}.yaml -n openshift"
+  notify: kscRestart
+  register: createTemps
+  changed_when: '"created" in createTemps.stdout'
+  with_items:
+  - "{{customTemplates}}"
+
+- name: Label infra nodes for router
+  shell: " oc --config=../kubeconfig label namespace default router=ingress"
+  register: router
+  changed_when: "'already' not in router.stderr"
+  failed_when: "'Error' in router.stderr"
+
+- name: create project template
+  shell: "oc --config=../kubeconfig apply -f roles/ocppost/files/project_request.yaml -n default"
+  register: projTemps
+  changed_when: '"created" in projTemps.stdout'
+
+

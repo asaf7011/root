@@ -1,0 +1,35 @@
+- name: install subscription-manager
+  package:
+    name: subscription-manager
+    state: present
+
+- name: mkdir oldrepos
+  file:
+   path: /etc/yum.repos.d/.oldrepos
+   state: directory
+
+- name: Check to see if any repo files found in /etc/yum.repos.d
+  find:
+    paths: "/etc/yum.repos.d"
+    patterns: "*.repo"
+  register: repo_files
+
+- name: Move all yum.repo files to /etc/yum.repos.d/.oldrepos
+  shell: "mv /etc/yum.repos.d/*.repo /etc/yum.repos.d/.oldrepos/"
+  when: repo_files.matched|int > 1
+
+- name: Register and attach to pool
+  redhat_subscription:
+    state: present
+    username: "{{rheluser}}"
+    password: "{{rhelpass}}"
+    pool_ids: "{{rhelpool}}"
+  register: loginrhel
+
+- name: Detach existing subscriptions
+  shell: "subscription-manager repos --disable=*"
+  when: "loginrhel.changed == true"
+
+- name: Attach to needed subscriptions
+  shell: 'subscription-manager repos --enable="rhel-7-server-rpms" --enable="rhel-7-server-extras-rpms" --enable="rhel-7-fast-datapath-rpms" --enable="rhel-7-server-ose-3.11-rpms"'
+  when: "loginrhel.changed == true"

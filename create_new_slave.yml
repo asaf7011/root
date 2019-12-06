@@ -1,0 +1,56 @@
+---
+- hosts: all
+  sudo: true
+  vars:
+     packages: [ 'vim', 'git', 'oracle-java8-jdk-x64' ]
+     hostname: newslave.fqdn
+  tasks:
+  - name: apt-get update
+    shell: apt-get update -y
+  - name: install Packages
+    apt: name={{ item }} state=latest
+    with_items: packges
+
+  - name: Set Hostname 
+    hostname: name={{ hostname.replace('*', ansible_all_ipv4_addresses[0].split('.')[3]) }}
+
+  - name: Add Hostname to hosts File
+  lineinfile: >
+    dest=/etc/hosts
+    regexp=^127\.0\.0\.1'
+    line='127.0.0.1 {{ hostname.replace("*", ansible_all_ipv4_addresses[0].split(*.*)[3]) }}'
+    state=present
+  lineinfile: >
+     dest=/etc/hosts
+     regexp=^127\.0\.0\.1'
+     line='127.0.0.1 {{ hostname.replace("*", ansible_all_ipv4_addresses[0].split(*.*)[3]) }}'
+     state=present
+  - name: copy slave.sh /usr/local/bin/
+    copy:
+      src: /etc/ansible/LastConfig/test_slave_config_files/slave.sh
+      dest: /usr/local/bin/slave.sh
+      owner: root
+      group: root
+      mode: '0744'
+
+  - name: copy slave.service to /etc/systemd/system/slave.service
+    copy:
+      src: /etc/ansible/LastConfig/test_slave_config_files/slave.service
+      dest: /etc/systemd/system/slave.service
+      owner: root
+      group: root
+      mode: '664'
+  
+  - name: restart docker service
+    shell: /etc/init.d/docker restart
+
+  - name: service daemon-reload
+    shell: systemctl daemon-reload
+
+  - name: Execute agent.jar
+    sudo: yes
+    service:
+        name: slave
+        state: started
+      
+

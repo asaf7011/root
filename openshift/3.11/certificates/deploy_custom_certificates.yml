@@ -1,0 +1,31 @@
+---
+- hosts: all
+  sudo: true
+  vars:
+       packages: [ 'libnss3-tools' ]
+  tasks:
+
+  - name: apt-get-update
+   shell: apt-get update -y
+
+  - name: Install Packages
+   apt: name={{ item }} state=latest
+   with-items: packages
+
+  - name: Copy CertFile - certfile.fqdn.crt
+   copy:
+     src: /usr/local/share/ca-certificates/certfile.fqdn.crt
+     dest: /usr/local/share/ca-certificates/certfile.fqdn.crt
+     owner: root
+     group: root
+     mode: '755'
+
+  - name: Copy deploy_certificate.sh
+    copy:
+      src: /usr/local/share/ca-certificates/deploy_certificates.sh
+      dest: /home/deploy_certificates.sh
+      owner: root
+      group: root
+      mode: '755'
+  - name: Update Certificate
+    shell: update-ca-certificates

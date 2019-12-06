@@ -1,0 +1,102 @@
+[OSEv3:children]
+masters
+nodes
+etcd
+lb
+
+[OSEv3:vars]
+ansible_ssh_user=root
+# ansible_become=false
+# debug_level=2
+openshift_type=openshift-enterprise
+openshift_deployment_type=openshift-enterprise
+openshift_cluster_method=native
+
+os_firewall_use_firewalld=true
+
+openshift_release=v3.11
+openshift_image_tag="v3.11.117-2"
+openshift_pkg_version=-3.11.117
+
+openshift_docker_additional_resgitries=offlinereg.example.com:5000
+# oreg_url=offlinereg.example.com:5000/openshift3/ose-${component}:${version}
+oreg_url=offlinereg.example.com:5000/openshift3/ose-${component}:v3.11.117-2
+oreg_auth_user=root
+oreg_auth_password=pass
+
+openshift_master_default_subdomain=wildcardname.example.com
+openshift_master_cluster_hostname=haproxy.example.com
+openshift_master_cluster_public_hostname=publichaproxy.example.com
+
+# openshift_docker_selinux_enabled=false
+
+openshift_enable_service_catalog=false
+openshift_clock_enabled=true
+openshift_master_identity_providers=[{"name": "my_ldap_provider", "challenge": "true", "login": "true", "kind": "LDAPPasswordIdentityProvider", "attributes": {"id": ["dn"], "email": ["mail"], "name": ["cn"], "preferredUsername": ["sAMAccountName"]}, "bindDN": "ldap@example.com", "bindPassword": { 'file': '/path/to/binPassword.encrypted', 'keyfile': '/path/to/bindPassword.key'}, "ca": "", "insecure": "true", "url": "ldap://example.com:389/ou=users,dc=example,dc=com?sAMAccountName"}]
+
+openshift_master_overwrite_named_certificates=true
+openshift_master_ca_certificate={'certfile': '/path/to/cafile.crt', 'keyfile': '/path/to/cafile.key'}
+openshift_master_named_certificates=[{"certfile": "/path/to/namedcert.crt", "keyfile": "/path/to/namedcert.key", "names": ['haptoxy.example.com'], "cafile": "/path/to/cabundle.pem"}]
+openshift_hosted_router_certificate={'certfile': '/path/to/wildcard.example.com.crt', 'keyfile': '/path/to/wildcard.example.com.key', 'cafile' : '/path/to/cabundle.pem'}
+
+openshift_prometheus_replicas=1
+
+openshift_logging_install_logging=true
+openshift_logging_image_version=v3.11.117-1
+openshift_logging_es_nodeselector={"node-role-kubernetes.io/infra": "true"}
+openshift_logging_elasticsearch_storage_type='hostPath'
+openshift_logging_es_cluster_size=3
+openshift_logging_es_number_of_shards=1
+openshift_logging_es_number_of_replicas=2
+openshift_logging_es_cpu_limit=2
+openshift_logging_fluentd_memory_limit='1Gi'
+openshift_logging_es_memory_limit='8Gi'
+openshift_logging_es_allow_external=true
+openshift_logging_es_hostname=elasticsearch.wildcard.example.com
+openshift_logging_kibana_hostname=kibana.wildcard.example.com
+openshift_logging_kibana_nodeselector={"node-role-kubernetes.io/infra" : "true"}
+
+openshift_metrics_install_metrics=true
+openshift_metrics_cassandra_replicas=3
+openshift_metrics_cassandra_nodeselector={"node-role-kubernetes.io/infra" : "true"}
+openshift_metrics_hawkuler_replicas=3
+openshift_metrics_hawkuler_nodeselector={"node-role-kubernetes.io/infra" : "true"}
+
+openshift_cluster_monitoring_operator_install=true
+
+openshift_grafana_nodeselector={"node-role-kubernetes.io/infra" : "true"}
+
+# openshift_master_ldap_ca_file=/path/to/myldap-crt.crt
+
+# openshift_install_examples=true
+# openshift_builddefaults_resources_requests_cpu=100m
+# openshift_builddefaults_resources_requests_memory=256Mi
+# openshift_builddefaults_resources_limits_cpu=1000m
+# openshift_builddefaults_resources_limits_memory=512Mi
+
+[masters]
+master01.example.com
+master02.example.com
+master03.example.com
+
+[etcd]
+master01.example.com
+master02.example.com
+master03.example.com
+
+[nodes]
+#MASTERS
+master01.example.com openshift_node_group_name='node-config-master'
+master02.example.com openshift_node_group_name='node-config-master'
+master03.example.com openshift_node_group_name='node-config-master'
+#APPS
+app01.example.com openshift_node_group_name='node-config-compute'
+app02.example.com openshift_node_group_name='node-config-compute'
+#INFRA
+infra01.example.com openshift_node_group_name='node-config-infra' 
+infra02.example.com openshift_node_group_name='node-config-infra' 
+infra03.example.com openshift_node_group_name='node-config-infra' 
+
+[lb]
+haproxy01.example.com
+haproxy02.example.com

@@ -1,0 +1,184 @@
+ - name: Update all hosts
+   hosts: OSEv3
+   become: true
+   gather_facts: true
+   serial: "100%"
+
+   tasks:
+
+   - name: update resolv file for dns
+     template:
+       src: templates/resolv.j2
+       dest: /etc/resolv.conf
+     when: dns is defined
+
+   - include: include/setup_internal_repos.yml
+     when: yumrepo_url is defined
+
+   - include: include/rhelsubmgr.yml
+     when: rheluser is defined
+
+   - name: install support packages
+     package:
+       name: "{{item}}"
+       state: present
+     with_items:
+       - wget
+       - git
+       - net-tools
+       - bind-utils
+       - yum-utils
+       - iptables-services
+       - bridge-utils
+       - bash-completion
+       - kexec-tools
+       - sos
+       - psacct
+       - ntp
+
+   - name: Install atomic openshift packages
+     package:
+       name: "{{item}}"
+       state: present
+     with_items:
+       - atomic-openshift-docker-excluder{{openshift_pkg_version}}
+       - atomic-openshift-excluder{{openshift_pkg_version}}
+     when: openshift_pkg_version is defined
+
+   - name: Install atomic openshift packages
+     package:
+       name: "{{item}}"
+       state: present
+     with_items:
+       - atomic-openshift-docker-excluder
+       - atomic-openshift-excluder
+     when: openshift_pkg_version is not defined
+
+   - name:     Configure NTP | Add server lines to ntp.conf
+     template:
+       src:    templates/ntpconf.j2
+       dest:   /etc/ntp.conf
+     when:     ntp is defined
+     notify:   ntp_restart
+
+   - name:     Configure NTP | start ntp daemon
+     service:  
+       name: ntpd 
+       enabled: yes 
+       state: started
+
+   - name: set hostname
+     hostname:
+       name: "{{ hostname }}"
+
+   - name: Build hosts entry for node
+     lineinfile:
+       path: /etc/hosts
+       line: "{{ ansible_default_ipv4.address }} {{ hostname }}"
+       state: present
+
+   - name: Build hosts file
+     lineinfile:
+       path: /etc/hosts
+       line: "{{ hostvars[item].ansible_default_ipv4.address }} {{ hostvars[item].hostname }}"
+       state: present
+     when: 'buildHostsFile is defined'
+     with_items:
+       - "{{ groups['OSEv3'] }}"
+
+   handlers:
+   - name: ntp_restart
+     service:
+       name: ntpd
+       state: restarted
+
+ - hosts: all
+   become: true
+   tasks:
+
+
+   - name: update /etc/hosts on all nodes with ivpcoe-vip
+     lineinfile: 
+       dest: /etc/hosts
+       line: '{{ keepalived_vip }}  {{ openshift_master_cluster_public_hostname }}'
+     when: keepalived_vip is defined     
+
+ - hosts: lb
+   become: true
+   tasks:
+
+
+   - name: install keepalived on lb nodes
+     package: 
+       name: "{{item}}"
+     with_items:
+      - keepalived
+     when: keepalived_vip is defined
+
+   - name: create keepalived.conf
+     template: 
+       src: ../templates/keepalived.conf 
+       dest: /etc/keepalived/keepalived.conf
+     when: keepalived_vip is defined
+
+   - name: restart keepalived
+     service: 
+       name: keepalived 
+       state: restarted 
+       enabled: yes
+     when: keepalived_vip is defined
+
+ 
+ - name: Install Docker
+   hosts: nodes
+   become: true
+   gather_facts: true
+   serial: "100%"
+
+   tasks:
+
+
+   - name: Install Docker | install packages
+     package:
+       name: "{{ item }}"
+       state: present
+     with_items:
+       - docker
+       - ethtool
+     notify: docker_restart
+
+   - name: Install Docker | setup docker storage
+     template:
+       src: templates/docker-storage-setup.j2
+       dest: /etc/sysconfig/docker-storage-setup
+     notify: docker_restart
+
+   - name: Verify presence of /dev/docker-vg/docker-pool
+     stat:
+       path: /dev/docker-vg/docker-pool
+     register: docker_vg_status
+
+   - name: Run docker-storage-setup
+     command: /usr/bin/docker-storage-setup
+     when: docker_vg_status.stat.islnk is not defined
+
+   - name: Install Docker | enable docker
+     service:
+       name: docker
+       state: started
+       enabled: yes
+
+   - name: setup etcd storage
+     include_tasks: include/etcdlvol.yml
+     when: inventory_hostname in groups['etcd'] and pv_etcd is defined
+
+   - name: remove cloud-init if present
+     package: 
+       name: cloud-init
+       state: absent
+
+   handlers:
+   - name: docker_restart
+     service:
+       name: docker
+       state: restarted
